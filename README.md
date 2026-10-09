@@ -1,0 +1,2 @@
+# Predicting-Indian-Premier-League-IPL-Match-Outcomes-Using-Logistic-Regression
+This project predicts Indian Premier League (IPL) match outcomes using machine learning in R. It uses logistic regression as the primary model and compares its performance with linear regression and random forest. The project analyzes match data, toss decisions, and teams to estimate win probabilities and evaluate prediction accuracy.
