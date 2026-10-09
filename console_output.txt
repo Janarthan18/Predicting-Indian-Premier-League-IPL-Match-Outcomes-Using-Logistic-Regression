@@ -1,0 +1,370 @@
+> # =============================================================================
+> # 02_ipl_logistic_regression.R
+> # Predicting IPL match outcomes with Logistic Regression
+> # (baselines: Linear Regression, Random Forest).  Run from the project folder.
+> # =============================================================================
+> pkgs <- c("caret", "ranger", "pROC", "ggplot2", "corrplot")
+> new  <- setdiff(pkgs, rownames(installed.packages()))
+> if (length(new)) install.packages(new)
+> invisible(lapply(pkgs, library, character.only = TRUE))
+Loading required package: ggplot2
+Loading required package: lattice
+Type 'citation("pROC")' for a citation.
+
+Attaching package: 'pROC'
+
+The following objects are masked from 'package:stats':
+
+    cov, smooth, var
+
+corrplot 0.92 loaded
+> options(width = 100, bitmapType = "cairo")
+> dir.create("plots", showWarnings = FALSE)
+> STEEL <- "#4682B4"; ORNG <- "#FF8C00"
+> theme_set(theme_minimal(base_size = 14))
+> # ---- SLIDE 3: Loading Dataset ----
+> ipl <- read.csv("ipl_matches.csv", stringsAsFactors = FALSE)
+> head(ipl)
+  match_id season       date      city                  venue                 team1
+1        1   2008 2008-03-24      <NA>           Eden Gardens        Mumbai Indians
+2        2   2008 2008-03-26    Mohali     PCA Stadium Mohali Kolkata Knight Riders
+3        3   2008 2008-03-29     Delhi   Arun Jaitley Stadium        Delhi Capitals
+4        4   2008 2008-03-31 Hyderabad   Rajiv Gandhi Stadium   Chennai Super Kings
+5        5   2008 2008-04-02 Bengaluru  M Chinnaswamy Stadium   Chennai Super Kings
+6        6   2008 2008-04-05      <NA> Sawai Mansingh Stadium   Chennai Super Kings
+                        team2           toss_winner toss_decision                      winner
+1       Kolkata Knight Riders Kolkata Knight Riders         field       Kolkata Knight Riders
+2                Punjab Kings          Punjab Kings           bat                Punjab Kings
+3       Kolkata Knight Riders Kolkata Knight Riders         field              Delhi Capitals
+4         Sunrisers Hyderabad   Chennai Super Kings         field         Sunrisers Hyderabad
+5 Royal Challengers Bangalore   Chennai Super Kings         field Royal Challengers Bangalore
+6                Punjab Kings   Chennai Super Kings           bat         Chennai Super Kings
+  team1_runs team2_runs team1_wickets   umpire1   umpire2
+1        123        188             4 Umpire_08 Umpire_04
+2        162        165             6 Umpire_04 Umpire_09
+3        161        136             5 Umpire_06 Umpire_04
+4        155        177             7 Umpire_03 Umpire_09
+5        175        183             4 Umpire_04 Umpire_14
+6        175        138             2 Umpire_13 Umpire_14
+> # ---- SLIDE 4: Anatomy of the Dataset ----
+> dim(ipl)
+[1] 500  15
+> names(ipl)
+ [1] "match_id"      "season"        "date"          "city"          "venue"         "team1"        
+ [7] "team2"         "toss_winner"   "toss_decision" "winner"        "team1_runs"    "team2_runs"   
+[13] "team1_wickets" "umpire1"       "umpire2"      
+> # ---- SLIDE 5: Structure of the Dataset ----
+> str(ipl)
+'data.frame':	500 obs. of  15 variables:
+ $ match_id     : int  1 2 3 4 5 6 7 8 9 10 ...
+ $ season       : int  2008 2008 2008 2008 2008 2008 2008 2008 2008 2008 ...
+ $ date         : chr  "2008-03-24" "2008-03-26" "2008-03-29" "2008-03-31" ...
+ $ city         : chr  NA "Mohali" "Delhi" "Hyderabad" ...
+ $ venue        : chr  "Eden Gardens" "PCA Stadium Mohali" "Arun Jaitley Stadium" "Rajiv Gandhi Stadium" ...
+ $ team1        : chr  "Mumbai Indians" "Kolkata Knight Riders" "Delhi Capitals" "Chennai Super Kings" ...
+ $ team2        : chr  "Kolkata Knight Riders" "Punjab Kings" "Kolkata Knight Riders" "Sunrisers Hyderabad" ...
+ $ toss_winner  : chr  "Kolkata Knight Riders" "Punjab Kings" "Kolkata Knight Riders" "Chennai Super Kings" ...
+ $ toss_decision: chr  "field" "bat" "field" "field" ...
+ $ winner       : chr  "Kolkata Knight Riders" "Punjab Kings" "Delhi Capitals" "Sunrisers Hyderabad" ...
+ $ team1_runs   : int  123 162 161 155 175 175 165 175 190 162 ...
+ $ team2_runs   : int  188 165 136 177 183 138 234 170 141 186 ...
+ $ team1_wickets: int  4 6 5 7 4 2 5 3 1 7 ...
+ $ umpire1      : chr  "Umpire_08" "Umpire_04" "Umpire_06" "Umpire_03" ...
+ $ umpire2      : chr  "Umpire_04" "Umpire_09" "Umpire_04" "Umpire_09" ...
+> # ---- SLIDE 6: Summary Statistics ----
+> summary(ipl)
+    match_id         season         date               city              venue          
+ Min.   :  1.0   Min.   :2008   Length:500         Length:500         Length:500        
+ 1st Qu.:125.8   1st Qu.:2012   Class :character   Class :character   Class :character  
+ Median :250.5   Median :2016   Mode  :character   Mode  :character   Mode  :character  
+ Mean   :250.5   Mean   :2016                                                           
+ 3rd Qu.:375.2   3rd Qu.:2021                                                           
+ Max.   :500.0   Max.   :2024                                                           
+                                                                                        
+    team1              team2           toss_winner        toss_decision         winner         
+ Length:500         Length:500         Length:500         Length:500         Length:500        
+ Class :character   Class :character   Class :character   Class :character   Class :character  
+ Mode  :character   Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+                                                                                               
+                                                                                               
+                                                                                               
+                                                                                               
+   team1_runs      team2_runs    team1_wickets      umpire1            umpire2         
+ Min.   : 97.0   Min.   :106.0   Min.   : 0.000   Length:500         Length:500        
+ 1st Qu.:153.0   1st Qu.:154.0   1st Qu.: 4.000   Class :character   Class :character  
+ Median :168.0   Median :169.0   Median : 5.000   Mode  :character   Mode  :character  
+ Mean   :168.1   Mean   :170.2   Mean   : 5.061                                        
+ 3rd Qu.:182.0   3rd Qu.:186.0   3rd Qu.: 7.000                                        
+ Max.   :252.0   Max.   :252.0   Max.   :10.000                                        
+                                 NA's   :8                                             
+> # ---- SLIDE 7: Missing Values Check ----
+> na_summary <- colSums(is.na(ipl))
+> na_summary
+     match_id        season          date          city         venue         team1         team2 
+            0             0             0            15             0             0             0 
+  toss_winner toss_decision        winner    team1_runs    team2_runs team1_wickets       umpire1 
+            0             0             0             0             0             8             0 
+      umpire2 
+           10 
+> # ---- SLIDE 8: Data Cleaning ----
+> dup_count <- sum(duplicated(ipl))
+> cat("Duplicate rows:", dup_count, "\n")
+Duplicate rows: 0 
+> ipl_clean <- ipl[!duplicated(ipl), ]
+> get_mode <- function(x) { ux <- unique(na.omit(x)); ux[which.max(tabulate(match(x, ux)))] }
+> for (col in names(ipl_clean)) {
++   if (is.numeric(ipl_clean[[col]])) {
++     ipl_clean[[col]][is.na(ipl_clean[[col]])] <- median(ipl_clean[[col]], na.rm = TRUE)
++   } else {
++     ipl_clean[[col]][is.na(ipl_clean[[col]])] <- get_mode(ipl_clean[[col]])
++   }
++ }
+> ipl_clean$team1_win <- ifelse(ipl_clean$winner == ipl_clean$team1, 1, 0)
+> ipl_clean <- ipl_clean[, !(names(ipl_clean) %in% c("match_id", "date", "city", "umpire1", "umpire2"))]
+> cat("Remaining NAs:", sum(is.na(ipl_clean)), "| Columns kept:", ncol(ipl_clean), "\n")
+Remaining NAs: 0 | Columns kept: 11 
+> # ---- SLIDE 9: Visualization 1 - Target Distribution ----
+> table(ipl_clean$team1_win)
+
+  0   1 
+270 230 
+> prop.table(table(ipl_clean$team1_win))
+
+   0    1 
+0.54 0.46 
+> p1 <- ggplot(ipl_clean, aes(x = factor(team1_win))) +
++   geom_bar(fill = c(ORNG, STEEL), width = 0.6) +
++   geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 5) +
++   labs(title = "Distribution of team1_win", x = "team1_win (0 = team2 wins, 1 = team1 wins)", y = "Matches")
+> ggsave("plots/01_target_distribution.png", p1, width = 7, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 10: Visualization 2 - Toss Decision ----
+> table(ipl_clean$toss_decision, ipl_clean$team1_win)
+       
+          0   1
+  bat   102  70
+  field 168 160
+> ipl_clean$toss_team1 <- ifelse(ipl_clean$toss_winner == ipl_clean$team1, 1, 0)
+> p2 <- ggplot(ipl_clean, aes(x = toss_decision, fill = factor(winner == toss_winner,
++               labels = c("Toss loser won", "Toss winner won")))) +
++   geom_bar(position = "dodge") + scale_fill_manual(values = c(ORNG, STEEL)) +
++   labs(title = "Toss decision vs match outcome", x = "Toss decision", y = "Matches", fill = NULL)
+> ggsave("plots/02_toss_decision.png", p2, width = 7, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 11: Visualization 3 - Teams, Correlation, Outliers ----
+> win_counts <- sort(table(ipl_clean$winner), decreasing = TRUE)
+> win_counts
+
+           Rajasthan Royals              Mumbai Indians         Chennai Super Kings 
+                         66                          63                          62 
+               Punjab Kings         Sunrisers Hyderabad              Delhi Capitals 
+                         61                          61                          60 
+      Kolkata Knight Riders Royal Challengers Bangalore        Lucknow Super Giants 
+                         58                          54                           9 
+             Gujarat Titans 
+                          6 
+> top_df <- data.frame(team = names(win_counts), wins = as.vector(win_counts))
+> p3 <- ggplot(top_df, aes(x = reorder(team, wins), y = wins)) +
++   geom_col(fill = STEEL) + coord_flip() +
++   labs(title = "Top 10 winning teams", x = NULL, y = "Wins")
+> ggsave("plots/03_top_teams.png", p3, width = 7, height = 5, dpi = 150, bg = "white")
+> num_vars <- ipl_clean[, sapply(ipl_clean, is.numeric)]
+> cor_mat <- cor(num_vars, use = "pairwise.complete.obs")
+> round(cor_mat[, "team1_win"], 3)
+       season    team1_runs    team2_runs team1_wickets     team1_win    toss_team1 
+       -0.036         0.549        -0.611        -0.725         1.000         0.177 
+> png("plots/04_correlation.png", width = 1000, height = 900, res = 150, bg = "white")
+> corrplot(cor_mat, method = "color", tl.cex = 0.8, addCoef.col = "black", number.cex = 0.7)
+> dev.off()
+null device 
+          1 
+> box_df <- stack(ipl_clean[, c("team1_runs", "team2_runs", "team1_wickets")])
+> p5 <- ggplot(box_df, aes(x = ind, y = values)) + geom_boxplot(fill = STEEL, alpha = 0.7, outlier.color = ORNG) +
++   facet_wrap(~ ind, scales = "free") +
++   labs(title = "Boxplots for outlier detection", x = NULL, y = "Value") +
++   theme(axis.text.x = element_blank())
+> ggsave("plots/05_boxplots.png", p5, width = 7, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 12: Train/Test Split ----
+> home_venue <- c("Chennai Super Kings" = "MA Chidambaram Stadium", "Mumbai Indians" = "Wankhede Stadium",
++   "Royal Challengers Bangalore" = "M Chinnaswamy Stadium", "Kolkata Knight Riders" = "Eden Gardens",
++   "Delhi Capitals" = "Arun Jaitley Stadium", "Rajasthan Royals" = "Sawai Mansingh Stadium",
++   "Sunrisers Hyderabad" = "Rajiv Gandhi Stadium", "Punjab Kings" = "PCA Stadium Mohali",
++   "Lucknow Super Giants" = "Ekana Stadium", "Gujarat Titans" = "Narendra Modi Stadium")
+> team_levels <- names(home_venue)
+> # pre-match features only (runs / wickets / winner are known only AFTER the match = leakage)
+> model_df <- data.frame(
++   team1         = factor(ipl_clean$team1, levels = team_levels),
++   team2         = factor(ipl_clean$team2, levels = team_levels),
++   toss_team1    = ipl_clean$toss_team1,
++   toss_decision = factor(ipl_clean$toss_decision),
++   team1_home    = as.numeric(ipl_clean$venue == home_venue[ipl_clean$team1]),
++   team2_home    = as.numeric(ipl_clean$venue == home_venue[ipl_clean$team2]),
++   team1_win     = ipl_clean$team1_win)
+> set.seed(123)
+> trainIndex <- createDataPartition(factor(model_df$team1_win), p = 0.8, list = FALSE)
+> train <- model_df[trainIndex, ]
+> test  <- model_df[-trainIndex, ]
+> cat("Train rows:", nrow(train), "| Test rows:", nrow(test), "\n")
+Train rows: 400 | Test rows: 100 
+> round(prop.table(table(train$team1_win)), 3)
+
+   0    1 
+0.54 0.46 
+> round(prop.table(table(test$team1_win)), 3)
+
+   0    1 
+0.54 0.46 
+> # ---- SLIDE 14: Logistic Regression - Code & Summary ----
+> glm_model <- glm(team1_win ~ ., data = train, family = binomial)
+> summary(glm_model)
+
+Call:
+glm(formula = team1_win ~ ., family = binomial, data = train)
+
+Coefficients:
+                                 Estimate Std. Error z value Pr(>|z|)    
+(Intercept)                      -0.77126    0.50519  -1.527 0.126843    
+team1Mumbai Indians               0.59030    0.45218   1.305 0.191735    
+team1Royal Challengers Bangalore -0.49705    0.45166  -1.100 0.271125    
+team1Kolkata Knight Riders        0.21389    0.43402   0.493 0.622144    
+team1Delhi Capitals               0.24027    0.42310   0.568 0.570116    
+team1Rajasthan Royals             0.44115    0.42340   1.042 0.297442    
+team1Sunrisers Hyderabad          0.41424    0.44358   0.934 0.350382    
+team1Punjab Kings                -0.35811    0.42995  -0.833 0.404891    
+team1Lucknow Super Giants         0.43139    0.68632   0.629 0.529645    
+team1Gujarat Titans              -0.45210    0.90004  -0.502 0.615451    
+team2Mumbai Indians              -0.02239    0.42520  -0.053 0.958012    
+team2Royal Challengers Bangalore  0.44139    0.42050   1.050 0.293867    
+team2Kolkata Knight Riders        0.16110    0.43480   0.371 0.710999    
+team2Delhi Capitals              -0.49612    0.48331  -1.027 0.304655    
+team2Rajasthan Royals             0.09846    0.47452   0.207 0.835627    
+team2Sunrisers Hyderabad         -0.21336    0.45100  -0.473 0.636164    
+team2Punjab Kings                 0.08522    0.42851   0.199 0.842358    
+team2Lucknow Super Giants         0.52678    0.84611   0.623 0.533555    
+team2Gujarat Titans               1.33913    0.85304   1.570 0.116455    
+toss_team1                        0.75836    0.21692   3.496 0.000472 ***
+toss_decisionfield                0.18902    0.22634   0.835 0.403647    
+team1_home                        0.20629    0.26635   0.774 0.438640    
+team2_home                       -0.58154    0.28687  -2.027 0.042647 *  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+(Dispersion parameter for binomial family taken to be 1)
+
+    Null deviance: 551.96  on 399  degrees of freedom
+Residual deviance: 507.43  on 377  degrees of freedom
+AIC: 553.43
+
+Number of Fisher Scoring iterations: 4
+
+> round(exp(coef(glm_model))[c("toss_team1", "team1_home", "team2_home")], 2)   # odds ratios
+toss_team1 team1_home team2_home 
+      2.13       1.23       0.56 
+> # ---- SLIDE 15: Logistic Regression - Evaluation ----
+> glm_probs      <- predict(glm_model, newdata = test, type = "response")
+> threshold      <- 0.5
+> glm_pred_class <- ifelse(glm_probs > threshold, 1, 0)
+> pred_factor    <- factor(glm_pred_class, levels = c(0, 1))
+> ref_factor     <- factor(test$team1_win, levels = c(0, 1))
+> conf <- caret::confusionMatrix(pred_factor, ref_factor, positive = "1")
+> print(conf)
+Confusion Matrix and Statistics
+
+          Reference
+Prediction  0  1
+         0 37 28
+         1 17 18
+                                          
+               Accuracy : 0.55            
+                 95% CI : (0.4473, 0.6497)
+    No Information Rate : 0.54            
+    P-Value [Acc > NIR] : 0.4611          
+                                          
+                  Kappa : 0.0779          
+                                          
+ Mcnemar's Test P-Value : 0.1360          
+                                          
+            Sensitivity : 0.3913          
+            Specificity : 0.6852          
+         Pos Pred Value : 0.5143          
+         Neg Pred Value : 0.5692          
+             Prevalence : 0.4600          
+         Detection Rate : 0.1800          
+   Detection Prevalence : 0.3500          
+      Balanced Accuracy : 0.5382          
+                                          
+       'Positive' Class : 1               
+                                          
+> cm_df <- as.data.frame(conf$table)
+> p_cm <- ggplot(cm_df, aes(x = Reference, y = Prediction, fill = Freq)) +
++   geom_tile(color = "white") + geom_text(aes(label = Freq), size = 9, color = "white") +
++   scale_fill_gradient(low = "#9fc0dc", high = "#2b5d8a") + labs(title = "Confusion matrix (test set)") +
++   theme(legend.position = "none")
+> ggsave("plots/06_confusion_matrix.png", p_cm, width = 6, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 16: ROC Curve & AUC ----
+> roc_obj <- pROC::roc(test$team1_win, glm_probs, levels = c(0, 1), direction = "<")
+> auc_glm <- as.numeric(pROC::auc(roc_obj))
+> cat("Logistic Regression AUC:", round(auc_glm, 4), "\n")
+Logistic Regression AUC: 0.5612 
+> png("plots/07_roc_curve.png", width = 1000, height = 900, res = 150, bg = "white")
+> plot(roc_obj, col = STEEL, lwd = 4, print.auc = TRUE, main = "ROC curve - Logistic Regression")
+> dev.off()
+null device 
+          1 
+> # ---- SLIDE 17: Linear Regression - Baseline ----
+> lm_model <- lm(team1_win ~ ., data = train)
+> lm_pred  <- predict(lm_model, newdata = test)
+> lm_rmse  <- sqrt(mean((lm_pred - test$team1_win)^2))
+> lm_r2    <- cor(lm_pred, test$team1_win)^2
+> cat("Linear Regression -> RMSE:", round(lm_rmse, 4), " R2:", round(lm_r2, 4), "\n")
+Linear Regression -> RMSE: 0.5059  R2: 0.0142 
+> cat("Predictions outside [0,1]:", sum(lm_pred < 0 | lm_pred > 1), "\n")
+Predictions outside [0,1]: 0 
+> lm_df <- data.frame(actual = test$team1_win, predicted = lm_pred)
+> p_lm <- ggplot(lm_df, aes(x = factor(actual), y = predicted)) +
++   geom_jitter(width = 0.15, alpha = 0.6, color = STEEL) +
++   geom_hline(yintercept = 0.5, linetype = "dashed", color = ORNG, linewidth = 1) +
++   labs(title = "Linear Regression: predicted vs actual", x = "Actual team1_win", y = "Predicted value")
+> ggsave("plots/08_linear_actual_vs_predicted.png", p_lm, width = 7, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 18: Random Forest - Comparison ----
+> train_rf <- train; train_rf$team1_win <- factor(train_rf$team1_win, levels = c(0, 1))
+> set.seed(123)
+> rf_model <- ranger(team1_win ~ ., data = train_rf, num.trees = 200,
++                    probability = TRUE, importance = "impurity")
+> rf_probs <- predict(rf_model, data = test)$predictions[, "1"]
+> rf_class <- factor(ifelse(rf_probs > 0.5, 1, 0), levels = c(0, 1))
+> rf_acc   <- mean(rf_class == ref_factor)
+> auc_rf   <- as.numeric(pROC::auc(pROC::roc(test$team1_win, rf_probs, levels = c(0, 1), direction = "<")))
+> cat("Ranger Random Forest -> Accuracy:", round(rf_acc, 4), " AUC:", round(auc_rf, 4), "\n")
+Ranger Random Forest -> Accuracy: 0.52  AUC: 0.5966 
+> imp <- sort(rf_model$variable.importance, decreasing = TRUE)
+> round(imp, 2)
+        team1         team2    toss_team1    team2_home toss_decision    team1_home 
+        19.29         17.06          7.78          5.33          5.13          4.02 
+> imp_df <- data.frame(feature = names(imp), importance = as.numeric(imp))
+> p_imp <- ggplot(imp_df, aes(x = reorder(feature, importance), y = importance)) +
++   geom_col(fill = STEEL) + coord_flip() + labs(title = "Random Forest: feature importance", x = NULL, y = "Impurity importance")
+> ggsave("plots/09_rf_importance.png", p_imp, width = 7, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 19: Random Forest - Actual vs Predicted ----
+> rf_df <- data.frame(actual = factor(test$team1_win), predicted = rf_probs)
+> p_rf <- ggplot(rf_df, aes(x = actual, y = predicted)) +
++   geom_jitter(width = 0.15, alpha = 0.6, color = STEEL) +
++   geom_hline(yintercept = 0.5, linetype = "dashed", color = ORNG, linewidth = 1) +
++   labs(title = "Random Forest: predicted probability vs actual", x = "Actual team1_win", y = "Predicted P(team1 wins)")
+> ggsave("plots/10_rf_actual_vs_predicted.png", p_rf, width = 7, height = 5, dpi = 150, bg = "white")
+> # ---- SLIDE 20: Model Comparison Table ----
+> glm_acc <- as.numeric(conf$overall["Accuracy"])
+> results <- data.frame(
++   model = c("Logistic Regression", "Linear Regression", "Random Forest"),
++   type  = c("Classification", "Regression", "Ensemble"),
++   accuracy_or_r2 = round(c(glm_acc, lm_r2, rf_acc), 4),
++   rmse  = c(NA, round(lm_rmse, 4), NA),
++   auc   = round(c(auc_glm, NA, auc_rf), 4),
++   kappa = round(c(as.numeric(conf$overall["Kappa"]), NA, NA), 4))
+> write.csv(results, "model_results.csv", row.names = FALSE)
+> results
+                model           type accuracy_or_r2   rmse    auc  kappa
+1 Logistic Regression Classification         0.5500     NA 0.5612 0.0779
+2   Linear Regression     Regression         0.0142 0.5059     NA     NA
+3       Random Forest       Ensemble         0.5200     NA 0.5966     NA
+> # write the significant logistic predictors to a file for reference
+> coefs <- summary(glm_model)$coefficients
+> write.csv(round(coefs, 4), "glm_coefficients.csv")

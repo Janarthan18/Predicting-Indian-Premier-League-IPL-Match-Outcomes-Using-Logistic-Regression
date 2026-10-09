@@ -1,0 +1,24 @@
+"","Estimate","Std. Error","z value","Pr(>|z|)"
+"(Intercept)",-0.7713,0.5052,-1.5267,0.1268
+"team1Mumbai Indians",0.5903,0.4522,1.3055,0.1917
+"team1Royal Challengers Bangalore",-0.497,0.4517,-1.1005,0.2711
+"team1Kolkata Knight Riders",0.2139,0.434,0.4928,0.6221
+"team1Delhi Capitals",0.2403,0.4231,0.5679,0.5701
+"team1Rajasthan Royals",0.4412,0.4234,1.0419,0.2974
+"team1Sunrisers Hyderabad",0.4142,0.4436,0.9338,0.3504
+"team1Punjab Kings",-0.3581,0.43,-0.8329,0.4049
+"team1Lucknow Super Giants",0.4314,0.6863,0.6285,0.5296
+"team1Gujarat Titans",-0.4521,0.9,-0.5023,0.6155
+"team2Mumbai Indians",-0.0224,0.4252,-0.0526,0.958
+"team2Royal Challengers Bangalore",0.4414,0.4205,1.0497,0.2939
+"team2Kolkata Knight Riders",0.1611,0.4348,0.3705,0.711
+"team2Delhi Capitals",-0.4961,0.4833,-1.0265,0.3047
+"team2Rajasthan Royals",0.0985,0.4745,0.2075,0.8356
+"team2Sunrisers Hyderabad",-0.2134,0.451,-0.4731,0.6362
+"team2Punjab Kings",0.0852,0.4285,0.1989,0.8424
+"team2Lucknow Super Giants",0.5268,0.8461,0.6226,0.5336
+"team2Gujarat Titans",1.3391,0.853,1.5698,0.1165
+"toss_team1",0.7584,0.2169,3.4961,5e-04
+"toss_decisionfield",0.189,0.2263,0.8351,0.4036
+"team1_home",0.2063,0.2664,0.7745,0.4386
+"team2_home",-0.5815,0.2869,-2.0271,0.0426

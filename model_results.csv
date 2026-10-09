@@ -1,0 +1,4 @@
+"model","type","accuracy_or_r2","rmse","auc","kappa"
+"Logistic Regression","Classification",0.55,NA,0.5612,0.0779
+"Linear Regression","Regression",0.0142,0.5059,NA,NA
+"Random Forest","Ensemble",0.52,NA,0.5966,NA
